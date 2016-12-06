@@ -3,20 +3,18 @@ import random
 import math
 import numpy as np
 
-from mirrordescent import LPMirrorDescent
-
 class REINFORCE(object):
 
-    def __init__(self, policy, actions, initial_weights, update, regularization_param=0.0):
+    def __init__(self, policy, actions, initial_weights, params):
         self.policy = policy
         self.actions = actions
         self.weights = initial_weights
         self.gamma = 1.
         self.alpha = 0.0003
-        self.noisy_observations = 2
-        self.update = update
-        self.regularization_param = regularization_param
-        self.mirrordesc = LPMirrorDescent(12)
+        self.noisy_observations = params.get('noisy_observations', 2)
+        self.update = params.get('update', None)
+        self.regularization_param = params.get('regularization', 0.)
+        self.mirrordesc = params.get('mirror', None)
 
     def episode(self, env):
         # reset environment
