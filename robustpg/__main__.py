@@ -97,6 +97,7 @@ def main(args=None):
         'name': 'sgd'
     }
 
+    """
     ###############################################
     # Compare mpg, sparse pg, and normal REINFORCE
     ###############################################
@@ -114,8 +115,21 @@ def main(args=None):
     baseline['name'] = 'baseline'
 
     params_list = [mpg, spg, baseline]
+    """
 
-    run_experiment('allcompare', policy, actions, env, init_weights, params_list, trials=20)
+    ###############################################
+    # Compare mpg with various p values
+    ###############################################
+    params_list = []
+    for pval in [2., 5., 12., 20., 30.]:
+        mpg = params.copy()
+        mpg['mirror'] = LPMirrorDescent(pval)
+        mpg['update'] = REINFORCE.mirrordescent
+        mpg['name'] = '$p = %.1f$' % pval
+        params_list.append(mpg)
+
+
+    run_experiment('mpgpcompare', policy, actions, env, init_weights, params_list, trials=10)
 
 
 if __name__ == "__main__":
