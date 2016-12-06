@@ -117,6 +117,7 @@ def main(args=None):
     params_list = [mpg, spg, baseline]
     """
 
+    """
     ###############################################
     # Compare mpg with various p values
     ###############################################
@@ -130,6 +131,21 @@ def main(args=None):
 
 
     run_experiment('mpgpcompare', policy, actions, env, init_weights, params_list, trials=10)
+    """
+
+    ###############################################
+    # Compare sparse pg with various regularization parameters
+    ###############################################
+    params_list = []
+    for lam in [0., 2., 3., 4., 5.]:
+        spg = params.copy()
+        spg['regularization'] = lam
+        spg['update'] = REINFORCE.proximal
+        spg['name'] = '$\lambda = %.1f$' % lam
+        params_list.append(spg)
+
+
+    run_experiment('spglcompare', policy, actions, env, init_weights, params_list, trials=10)
 
 
 if __name__ == "__main__":
