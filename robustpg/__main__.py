@@ -97,7 +97,6 @@ def main(args=None):
         'name': 'sgd'
     }
 
-    """
     ###############################################
     # Compare mpg, sparse pg, and normal REINFORCE
     ###############################################
@@ -115,7 +114,8 @@ def main(args=None):
     baseline['name'] = 'baseline'
 
     params_list = [mpg, spg, baseline]
-    """
+
+    run_experiment('allcompare', policy, actions, env, init_weights, params_list, trials=200)
 
     """
     ###############################################
@@ -130,9 +130,10 @@ def main(args=None):
         params_list.append(mpg)
 
 
-    run_experiment('mpgpcompare', policy, actions, env, init_weights, params_list, trials=10)
+    run_experiment('mpgpcompare', policy, actions, env, init_weights, params_list, trials=200)
     """
 
+    """
     ###############################################
     # Compare sparse pg with various regularization parameters
     ###############################################
@@ -145,7 +146,8 @@ def main(args=None):
         params_list.append(spg)
 
 
-    run_experiment('spglcompare', policy, actions, env, init_weights, params_list, trials=10)
+    run_experiment('spglcompare', policy, actions, env, init_weights, params_list, trials=200)
+    """
 
 
 if __name__ == "__main__":
