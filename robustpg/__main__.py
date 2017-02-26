@@ -8,7 +8,9 @@ from scipy import stats
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
+from features import FourierBasis
 from policy import SoftmaxPolicy
+from policy import GaussianPolicy
 from pg import REINFORCE
 from mirrordescent import LPMirrorDescent
 
@@ -27,7 +29,7 @@ class Features(object):
 """
 Run REINFORCE with different params
 """
-def run_experiment(output_name, policy, actions, env, init_weights, params_list, trials=10, steps=300):
+def run_experiment(output_name, policy, env, init_weights, params_list, learning_rates, trials=10, steps=300):
     # Create output directory if it doesn't exist
     try:
         os.makedirs(output_name)
@@ -37,7 +39,7 @@ def run_experiment(output_name, policy, actions, env, init_weights, params_list,
 
     # Run experiments
     for p in params_list:
-        pg = REINFORCE(policy, actions, init_weights(), p)
+        pg = REINFORCE(policy, init_weights(), p, learning_rates)
 
         rewards = np.zeros((trials, steps))
         weights = np.zeros((trials, init_weights().shape[0]))
@@ -49,12 +51,12 @@ def run_experiment(output_name, policy, actions, env, init_weights, params_list,
             pg.weights = init_weights()
 
         # rewards standard deviation
-        rewards_std = np.std(rewards, axis=0)
+        #rewards_std = np.std(rewards, axis=0)
         rewards_mean = np.mean(rewards, axis=0)
 
         # 95% Confidence intervals
-        data_crit = stats.t.ppf(1.0 - (0.05 / 2.0), trials - 1)
-        confidences = map(lambda s: (data_crit*s) / math.sqrt(trials), rewards_std)
+        #data_crit = stats.t.ppf(1.0 - (0.05 / 2.0), trials - 1)
+        #confidences = map(lambda s: (data_crit*s) / math.sqrt(trials), rewards_std)
 
         weights_mean = np.mean(weights, axis=0)
 
@@ -62,8 +64,8 @@ def run_experiment(output_name, policy, actions, env, init_weights, params_list,
         np.save('%s/rewards.npy' % output_name, rewards, allow_pickle=False)
         np.save('%s/weights.npy' % output_name, weights, allow_pickle=False)
 
-        #plt.plot(range(len(rewards_mean)), rewards_mean, label=p['name'])
-        plt.errorbar(x=range(len(rewards_mean)), y=rewards_mean, label=p['name'], yerr=confidences, errorevery=10)
+        plt.plot(range(len(rewards_mean)), rewards_mean, label=p['name'])
+        #plt.errorbar(x=range(len(rewards_mean)), y=rewards_mean, label=p['name'], yerr=confidences, errorevery=10)
 
     plt.legend(loc=0)
     plt.axes().set_xlabel("Episodes")
@@ -72,7 +74,7 @@ def run_experiment(output_name, policy, actions, env, init_weights, params_list,
     plt.show()
 
 
-def main(args=None):
+def cartpole(args=None):
     # Set up environment and learner
     env = gym.make('CartPole-v0')
     state_size = env.observation_space.shape[0]
@@ -115,7 +117,7 @@ def main(args=None):
 
     params_list = [mpg, spg, baseline]
 
-    run_experiment('allcompare', policy, actions, env, init_weights, params_list, trials=200)
+    run_experiment('allcompare', policy, env, init_weights, params_list, trials=200)
 
     """
     ###############################################
@@ -148,6 +150,63 @@ def main(args=None):
 
     run_experiment('spglcompare', policy, actions, env, init_weights, params_list, trials=200)
     """
+
+
+def pendulum(args=None):
+    # Set up environment and learner
+    env = gym.make('Pendulum-v0')
+    state_size = env.observation_space.shape[0]
+    ranges = zip(env.observation_space.low, env.observation_space.high)
+    action_ranges = zip(env.action_space.low, env.action_space.high)
+
+    # Features
+    feats = FourierBasis(state_size, 3)
+    def phi(st):
+        state = np.copy(st)
+        state[0] = (state[0] + 1.) / 2.
+        state[1] = (state[1] + 1.) / 2.
+        state[2] = (state[2] + 8.) / 16.
+        return feats.generate_features(state)
+
+    # State features
+    policy = GaussianPolicy(phi)
+
+    # Initial weights
+    init_weights = lambda: np.zeros(feats.num_basis_functions() * 2)
+
+    # Experiment parameters
+    params = {
+        'noisy_observations': 0,
+        'regularization': 0.0,
+        'mirror': None,
+        'update': REINFORCE.sgd,
+        'name': 'sgd'
+    }
+
+    ###############################################
+    # Compare mpg, sparse pg, and normal REINFORCE
+    ###############################################
+    #mpg = params.copy()
+    #mpg['mirror'] = LPMirrorDescent(12)
+    #mpg['update'] = REINFORCE.mirrordescent
+    #mpg['name'] = 'mirrored pg'
+
+    #spg = params.copy()
+    #spg['update'] = REINFORCE.proximal
+    #spg['regularization'] = 3.0
+    #spg['name'] = 'sparse pg'
+
+    baseline = params.copy()
+    baseline['name'] = 'baseline'
+
+    #params_list = [mpg, spg, baseline]
+    params_list = [baseline]
+
+    run_experiment('test3', policy, env, init_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), trials=100, steps=2500)
+
+
+def main(args=None):
+    pendulum()
 
 
 if __name__ == "__main__":

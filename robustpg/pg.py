@@ -5,12 +5,12 @@ import numpy as np
 
 class REINFORCE(object):
 
-    def __init__(self, policy, actions, initial_weights, params):
+    def __init__(self, policy, initial_weights, params, learning_rates=lambda l: l):
         self.policy = policy
-        self.actions = actions
         self.weights = initial_weights
         self.gamma = 1.
-        self.alpha = 0.0003
+        self.alpha = 0.0000001
+        self.learning_rates = learning_rates(self.alpha)
         self.noisy_observations = params.get('noisy_observations', 2)
         self.update = params.get('update', None)
         self.regularization_param = params.get('regularization', 0.)
@@ -23,6 +23,7 @@ class REINFORCE(object):
         history = []
 
         totalreward = 0.0
+        steps = 0
         while not done:
             s = observation
             a = self.choose_action(s)
@@ -30,6 +31,20 @@ class REINFORCE(object):
             totalreward += reward
 
             history.append((s, a, reward))
+
+            #print(s)
+            #print(a)
+            #print(reward)
+            #print(observation)
+            #print("\n")
+            if math.isnan(reward):
+                print("NAN!!!")
+                import sys; sys.exit()
+            steps += 1
+            if steps >= 200:
+                break
+
+        #print("DONE--")
 
         for i in xrange(len(history)):
             s, a, reward = history[i]
@@ -43,10 +58,12 @@ class REINFORCE(object):
                 decay *= self.gamma
 
             # SGD Update
-            #olda = self.alpha
-            #self.alpha = self.alpha / (1. + math.log(1.+i))
+            olda = self.alpha
+            self.alpha = self.alpha / (1. + i)
+            #print(self.weights)
             self.weights = self.update(self, self.weights, self.gamma ** i, totalreturn, s, a)
-            #self.alpha = olda
+            #print(self.weights)
+            self.alpha = olda
 
         return totalreward
 
@@ -57,8 +74,9 @@ class REINFORCE(object):
 
     @staticmethod
     def sgd(reinforce, weights, gamma, totalreturn, s, a):
-        return weights + reinforce.alpha*gamma*totalreturn*reinforce.policy.loggradient(s, a, weights)
+        return weights + reinforce.learning_rates*gamma*totalreturn*reinforce.policy.loggradient(s, a, weights)
 
+    # TODO: Use learning_rates instead of alpha
     @staticmethod
     def subgradient(reinforce, weights, gamma, totalreturn, s, a):
         return weights + reinforce.alpha*(gamma*totalreturn*reinforce.policy.loggradient(s, a, weights) - reinforce.regularization_param*np.sign(weights))
@@ -115,5 +133,5 @@ class REINFORCE(object):
             return (add_noise(obs), r, done, info)
 
     def choose_action(self, state):
-        return np.random.choice(self.actions, p=[self.policy.policy(state, a, self.weights) for a in self.actions])
+        return self.policy.sample(state, self.weights)
 
