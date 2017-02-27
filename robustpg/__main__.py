@@ -12,6 +12,7 @@ from features import FourierBasis
 from policy import SoftmaxPolicy
 from policy import GaussianPolicy
 from pg import REINFORCE
+from pg import ActorCritic
 from mirrordescent import LPMirrorDescent
 
 class Features(object):
@@ -26,10 +27,22 @@ class Features(object):
         return feats
 
 
+class LinearVFA(object):
+
+    def __init__(self, featuregen):
+        self.featuregen = featuregen
+
+    def value(self, state, weights):
+        return self.featuregen.linear_combination(weights, state)
+
+    def gradient(self, state, weights):
+        return self.featuregen.generate_features(state)
+
+
 """
 Run REINFORCE with different params
 """
-def run_experiment(output_name, policy, env, init_weights, params_list, learning_rates, trials=10, steps=300):
+def run_experiment(output_name, policy, critic, env, init_actor_weights, init_critic_weights, params_list, actor_learning_rates, critic_learning_rates, trials=10, steps=300):
     # Create output directory if it doesn't exist
     try:
         os.makedirs(output_name)
@@ -39,16 +52,19 @@ def run_experiment(output_name, policy, env, init_weights, params_list, learning
 
     # Run experiments
     for p in params_list:
-        pg = REINFORCE(policy, init_weights(), p, learning_rates)
+        #pg = REINFORCE(policy, init_weights(), p, learning_rates)
+        pg = ActorCritic(policy, critic, init_actor_weights(), init_critic_weights(), p, actor_learning_rates, critic_learning_rates)
 
         rewards = np.zeros((trials, steps))
-        weights = np.zeros((trials, init_weights().shape[0]))
+        actor_weights = np.zeros((trials, init_actor_weights().shape[0]))
+        critic_weights = np.zeros((trials, init_critic_weights().shape[0]))
         for t in xrange(trials):
             for i in xrange(steps):
                 rewards[t, i] = pg.episode(env)
 
-            weights[t:] = pg.weights
-            pg.weights = init_weights()
+            actor_weights[t:] = pg.actor_weights
+            pg.actor_weights = init_actor_weights()
+            pg.critic_weights = init_critic_weights()
 
         # rewards standard deviation
         #rewards_std = np.std(rewards, axis=0)
@@ -58,11 +74,11 @@ def run_experiment(output_name, policy, env, init_weights, params_list, learning
         #data_crit = stats.t.ppf(1.0 - (0.05 / 2.0), trials - 1)
         #confidences = map(lambda s: (data_crit*s) / math.sqrt(trials), rewards_std)
 
-        weights_mean = np.mean(weights, axis=0)
+        weights_mean = np.mean(actor_weights, axis=0)
 
         # Save data
         np.save('%s/rewards.npy' % output_name, rewards, allow_pickle=False)
-        np.save('%s/weights.npy' % output_name, weights, allow_pickle=False)
+        np.save('%s/weights.npy' % output_name, actor_weights, allow_pickle=False)
 
         plt.plot(range(len(rewards_mean)), rewards_mean, label=p['name'])
         #plt.errorbar(x=range(len(rewards_mean)), y=rewards_mean, label=p['name'], yerr=confidences, errorevery=10)
@@ -168,11 +184,15 @@ def pendulum(args=None):
         state[2] = (state[2] + 8.) / 16.
         return feats.generate_features(state)
 
+    # Critic
+    critic = LinearVFA(feats)
+
     # State features
     policy = GaussianPolicy(phi)
 
     # Initial weights
-    init_weights = lambda: np.zeros(feats.num_basis_functions() * 2)
+    init_actor_weights = lambda: np.zeros(feats.num_basis_functions() * 2)
+    init_critic_weights = lambda: np.zeros(feats.num_basis_functions())
 
     # Experiment parameters
     params = {
@@ -202,7 +222,7 @@ def pendulum(args=None):
     #params_list = [mpg, spg, baseline]
     params_list = [baseline]
 
-    run_experiment('test3', policy, env, init_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), trials=100, steps=2500)
+    run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), feats.learning_rates, trials=1, steps=2500)
 
 
 def main(args=None):

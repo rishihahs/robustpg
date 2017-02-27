@@ -135,3 +135,95 @@ class REINFORCE(object):
     def choose_action(self, state):
         return self.policy.sample(state, self.weights)
 
+
+class ActorCritic(object):
+
+    def __init__(self, actor, critic, actor_weights, critic_weights, params,
+                    actor_learning_rates=lambda l1: l1, critic_learning_rates=lambda l2: l2):
+        self.actor = actor
+        self.critic = critic
+        self.actor_weights = actor_weights
+        self.critic_weights = critic_weights
+
+        self.gamma = 1.0
+        self.base_actor_learning_rate = 0.00001
+        self.base_critic_learning_rate = 0.001
+        self.actor_lambda = 0.
+        self.critic_lambda = 0.
+
+        self.actor_learning_rate = actor_learning_rates(self.base_actor_learning_rate)
+        self.critic_learning_rate = critic_learning_rates(self.base_critic_learning_rate)
+
+        self.noisy_observations = params.get('noisy_observations', 2)
+        self.update = params.get('update', None)
+        self.regularization_param = params.get('regularization', 0.)
+        self.mirrordesc = params.get('mirror', None)
+
+    def episode(self, env):
+        # reset environment
+        observation = self.transition(env, None)
+        done = False
+
+        # eligibility traces
+        e_actor = np.zeros(self.actor_weights.shape)
+        e_critic = np.zeros(self.critic_weights.shape)
+
+        # gamma decay
+        I = 1.
+
+        totalreward = 0.0
+        steps = 0
+        while not done:
+            s = observation
+            a = self.choose_action(s)
+            observation, reward, done, info = self.transition(env, a)
+            totalreward += reward
+
+            steps += 1
+            if steps >= 200:
+                done = True
+
+            delta = reward + self.gamma*self.critic.value(observation, self.critic_weights)
+            delta -= 0 if done else self.critic.value(s, self.critic_weights)
+
+            e_actor = self.actor_lambda*e_actor + I*self.actor.loggradient(s, a, self.actor_weights)
+            e_critic = self.critic_lambda*e_critic + I*self.critic.gradient(s, self.critic_weights)
+
+            self.actor_weights = self.actor_weights + self.actor_learning_rate*delta*e_actor
+            self.critic_weights = self.critic_weights + self.critic_learning_rate*delta*e_critic
+
+            I = self.gamma*I
+
+            if math.isnan(reward):
+                print("NAN!!!")
+                import sys; sys.exit()
+
+        return totalreward
+
+
+    """
+    Update methods
+    """
+    @staticmethod
+    def sgd(reinforce, weights, gamma, totalreturn, s, a):
+        return weights + reinforce.learning_rates*gamma*totalreturn*reinforce.policy.loggradient(s, a, weights)
+
+
+    """
+    Executes a step in the environment
+    -- resets environment if action is none
+    Returns next state, reward, done, info
+    """
+    def transition(self, env, action):
+        # Add noise for teh lulz
+        add_noise = lambda obs: np.append(obs, 0.3*np.random.rand(self.noisy_observations))
+
+        if action is None:
+            return add_noise(env.reset())
+        else:
+            obs, r, done, info = env.step(action)
+            return (add_noise(obs), r, done, info)
+
+    def choose_action(self, state):
+        return self.actor.sample(state, self.actor_weights)
+
