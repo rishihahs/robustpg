@@ -1,6 +1,7 @@
 from __future__ import division
 import gym
 import functools
+import sys
 import os
 import math
 import numpy as np
@@ -72,6 +73,30 @@ def run_experiment(output_name, policy, env, init_weights, params_list, learning
     plt.axes().set_ylabel("Reward")
     plt.savefig('%s/%s.pdf' % (output_name, output_name))
     plt.show()
+
+
+"""
+Run REINFORCE on Condor with different params
+This runs one trial (Use a trial per condor job)
+"""
+def run_condor_experiment(output_dir, trialnum, policy, env, init_weights, params, learning_rates, steps=300):
+    # Create output directory if it doesn't exist
+    try:
+        os.makedirs(output_dir)
+    except OSError:
+        if not os.path.isdir(output_dir):
+            raise
+
+    # Run experiments
+    pg = REINFORCE(policy, init_weights(), params, learning_rates)
+
+    rewards = np.zeros(steps)
+    weights = np.zeros(init_weights().shape[0])
+    for i in xrange(steps):
+        rewards[i] = pg.episode(env)
+
+    # Save data
+    np.savetxt('%s/rewards-%s.csv' % (output_dir, trialnum), rewards, delimiter=",")
 
 
 def cartpole(args=None):
@@ -152,7 +177,13 @@ def cartpole(args=None):
     """
 
 
-def pendulum(args=None):
+def pendulum(args):
+    if len(args) != 3:
+        print("Check CLI Arguments")
+        sys.exit(1)
+    trialnum, outputdir, numepisodes = args
+    numepisodes = int(numepisodes)
+
     # Set up environment and learner
     env = gym.make('Pendulum-v0')
     state_size = env.observation_space.shape[0]
@@ -200,14 +231,14 @@ def pendulum(args=None):
     baseline['name'] = 'baseline'
 
     #params_list = [mpg, spg, baseline]
-    params_list = [baseline]
+    params = baseline
 
-    run_experiment('test3', policy, env, init_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), trials=100, steps=2500)
+    run_condor_experiment(outputdir, trialnum, policy, env, init_weights, params, lambda l: np.tile(feats.learning_rates(l), 2), steps=numepisodes)
 
 
-def main(args=None):
-    pendulum()
+def main(args):
+    pendulum(args)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

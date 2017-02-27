@@ -66,10 +66,10 @@ class GaussianPolicy(Policy):
     def __init__(self, phi):
         self.phi = phi
 
-        meanweights = T.dvector('meanweights')
-        varweights = T.dvector('varweights')
-        state = T.dvector('state')
-        action = T.dscalar('action')
+        meanweights = T.vector('meanweights')
+        varweights = T.vector('varweights')
+        state = T.vector('state')
+        action = T.scalar('action')
         mean = T.dot(meanweights, state)
         stddev = T.exp(T.dot(varweights, state))
         pdf = (1. / (stddev*np.sqrt(2*np.pi))) * T.exp(-T.sqr(action - mean) / (2*T.sqr(stddev)))
@@ -77,9 +77,9 @@ class GaussianPolicy(Policy):
         gradlogmean = T.grad(cost=T.log(pdf), wrt=meanweights)
         gradlogvar = T.grad(cost=T.log(pdf), wrt=varweights)
 
-        self.pdf = theano.function([state, action, meanweights, varweights], pdf)
-        self.gradlogmean = theano.function([state, action, meanweights, varweights], gradlogmean)
-        self.gradlogvar = theano.function([state, action, meanweights, varweights], gradlogvar)
+        self.pdf = theano.function([state, action, meanweights, varweights], pdf, allow_input_downcast=True)
+        self.gradlogmean = theano.function([state, action, meanweights, varweights], gradlogmean, allow_input_downcast=True)
+        self.gradlogvar = theano.function([state, action, meanweights, varweights], gradlogvar, allow_input_downcast=True)
 
     def policy(self, state, action, weights):
         assert(len(weights) % 2 == 0)

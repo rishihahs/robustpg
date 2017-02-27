@@ -35,13 +35,13 @@ class FourierBasis(FeatureGenerator):
         self.C = theano.shared(self.__gen_coefficients(dimension, order), borrow=True)
 
         # Basis functions
-        s = T.dvector('s')
+        s = T.vector('s')
         phi = T.cos(np.pi*T.dot(self.C, s))
-        self.phi = theano.function([s], phi)
+        self.phi = theano.function([s], phi, allow_input_downcast=True)
 
         # Linear combination with weights
-        w = T.dvector('w')
-        self.linearcombo = theano.function([w, s], T.dot(w, phi))
+        w = T.vector('w')
+        self.linearcombo = theano.function([w, s], T.dot(w, phi), allow_input_downcast=True)
 
 
     """
