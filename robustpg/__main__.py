@@ -2,6 +2,7 @@ from __future__ import division
 import gym
 import functools
 import os
+import sys
 import math
 import numpy as np
 from scipy import stats
@@ -130,6 +131,31 @@ def run_experiment(output_name, policy, critic, env, init_actor_weights, init_cr
     plt.axes().set_xlabel("Episodes")
     plt.axes().set_ylabel("Reward")
     plt.savefig('%s/%s.pdf' % (output_name, output_name))
+    plt.show()
+
+
+"""
+Run ActorCritic on Condor with different params
+This runs one trial (Use a trial per condor job)
+"""
+def run_condor_experiment(output_dir, trialnum, policy, critic, env, init_actor_weights, init_critic_weights, params, actor_learning_rates, critic_learning_rates, steps=300):
+    # Create output directory if it doesn't exist
+    try:
+        os.makedirs(output_dir)
+    except OSError:
+        if not os.path.isdir(output_dir):
+            raise
+
+    # Run experiments
+    pg = ActorCritic(policy, critic, init_actor_weights(), init_critic_weights(), params, actor_learning_rates, critic_learning_rates)
+
+    rewards = np.zeros(steps)
+    for i in xrange(steps):
+        rewards[i] = pg.episode(env)
+
+    # Save data
+    #np.savetxt('%s/rewards-%s.csv' % (output_dir, trialnum), rewards, delimiter=",")
+    plt.plot(range(len(rewards)), rewards)
     plt.show()
 
 
@@ -268,12 +294,12 @@ def pendulum(args=None):
     run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), feats.learning_rates, trials=1, steps=2500)
 
 
-def mountaincar(args=None):
-    #if len(args) != 3:
-    #    print("Check CLI Arguments")
-    #    sys.exit(1)
-    #trialnum, numepisodes, outputdir = args
-    #numepisodes = int(numepisodes)
+def mountaincar(args):
+    if len(args) != 3:
+        print("Check CLI Arguments")
+        sys.exit(1)
+    trialnum, numepisodes, outputdir = args
+    numepisodes = int(numepisodes)
 
     # Set up environment and learner
     env = gym.make('MountainCar-v0')
@@ -340,17 +366,17 @@ def mountaincar(args=None):
     baseline['name'] = 'baseline'
 
     #params_list = [mpg, spg, baseline]
-    #params = baseline
-    params_list = [baseline]
+    params = baseline
+    #params_list = [baseline]
 
-    #run_condor_experiment(outputdir, trialnum, policy, env, init_weights, params, feats.learning_rates, steps=numepisodes)
-    run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, feats.learning_rates, criticfeats.learning_rates, trials=1, steps=100)
+    #run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, feats.learning_rates, criticfeats.learning_rates, trials=1, steps=100)
+    run_condor_experiment(outputdir, trialnum, policy, critic, env, init_actor_weights, init_critic_weights, params, feats.learning_rates, criticfeats.learning_rates, steps=numepisodes)
 
 
 
-def main(args=None):
-    mountaincar()
+def main(args):
+    mountaincar(args)
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
