@@ -6,7 +6,9 @@ import math
 import numpy as np
 from scipy import stats
 from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 from features import FourierBasis
 from policy import SoftmaxPolicy
@@ -40,6 +42,44 @@ class LinearVFA(object):
 
 
 """
+Vizualize VFA
+observation_indices: tuple of the indices of the two state features desired
+features_gen: function that takes two state features and generates full features
+action: action to visualize
+"""
+def visualize_vfa(vfa, env, weights):
+    maxr = 600.0  # Maximum range
+    minr = -600.0 # Minimum range
+
+    i1, i2 = (0, 1)
+
+    x_range = [max(env.observation_space.low[i1], minr), min(env.observation_space.high[i1], maxr)]
+    y_range = [max(env.observation_space.low[i2], minr), min(env.observation_space.high[i2], maxr)]
+
+    # This determines how densely the grid is. To cut down on computational
+    # cost, we'll keep it a bit sparse.
+    x_resolution = (x_range[1] - x_range[0])/50.0
+    y_resolution = (y_range[1] - y_range[0])/50.0
+
+    x = np.arange(x_range[0], x_range[1], x_resolution)
+    y = np.arange(y_range[0], y_range[1], y_resolution)
+    X, Y = np.meshgrid(x, y)
+    zs = np.array([vfa.value(np.array([x, y]), weights) for x, y in zip(np.ravel(X), np.ravel(Y))])
+    Z = zs.reshape(X.shape)
+
+    plt.cla()
+    plt.clf()
+    fig = plt.gcf()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm, linewidth=0, antialiased=True)
+    ax.set_xlabel('Position')
+    ax.set_ylabel('Velocity')
+    ax.set_zlabel('Value function')
+    plt.draw()
+    plt.show()
+
+
+"""
 Run REINFORCE with different params
 """
 def run_experiment(output_name, policy, critic, env, init_actor_weights, init_critic_weights, params_list, actor_learning_rates, critic_learning_rates, trials=10, steps=300):
@@ -61,6 +101,9 @@ def run_experiment(output_name, policy, critic, env, init_actor_weights, init_cr
         for t in xrange(trials):
             for i in xrange(steps):
                 rewards[t, i] = pg.episode(env)
+
+                #if i > 0 and i % 20 == 0:
+                #    visualize_vfa(critic, env, pg.critic_weights)
 
             actor_weights[t:] = pg.actor_weights
             pg.actor_weights = init_actor_weights()
@@ -225,8 +268,88 @@ def pendulum(args=None):
     run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, lambda l: np.tile(feats.learning_rates(l), 2), feats.learning_rates, trials=1, steps=2500)
 
 
+def mountaincar(args=None):
+    #if len(args) != 3:
+    #    print("Check CLI Arguments")
+    #    sys.exit(1)
+    #trialnum, numepisodes, outputdir = args
+    #numepisodes = int(numepisodes)
+
+    # Set up environment and learner
+    env = gym.make('MountainCar-v0')
+    state_size = env.observation_space.shape[0]
+    ranges = zip(env.observation_space.low, env.observation_space.high)
+    actions = range(env.action_space.n)
+
+    # Features
+    criticfeats = FourierBasis(state_size, 7)
+    feats = FourierBasis(state_size+1, 3)
+    #def phi(st, a):
+    #    state = np.copy(st)
+    #    state[0] = (state[0] + 1.2) / 1.8
+    #    state[1] = (state[1] + 0.07) / 0.14
+    #
+    #    f = np.zeros(state_size * env.action_space.n)
+    #    f[(state_size*a):(state_size*a + state_size)] = state
+    #
+    #    return feats.generate_features(f)
+    def phi(st, a):
+        state = np.copy(st)
+        state[0] = (state[0] + 1.2) / 1.8
+        state[1] = (state[1] + 0.07) / 0.14
+
+        f = np.zeros(state_size + 1)
+        f[:state_size] = state
+        f[-1] = a / 2.
+
+        return feats.generate_features(f)
+
+    # Critic
+    critic = LinearVFA(criticfeats)
+
+    # State features
+    policy = SoftmaxPolicy(actions, phi)
+
+    # Initial weights
+    init_actor_weights = lambda: np.zeros(feats.num_basis_functions())
+    init_critic_weights = lambda: np.zeros(criticfeats.num_basis_functions())
+
+    # Experiment parameters
+    params = {
+        'noisy_observations': 0,
+        'regularization': 0.0,
+        'mirror': None,
+        'update': REINFORCE.sgd,
+        'name': 'sgd'
+    }
+
+    ###############################################
+    # Compare mpg, sparse pg, and normal REINFORCE
+    ###############################################
+    #mpg = params.copy()
+    #mpg['mirror'] = LPMirrorDescent(12)
+    #mpg['update'] = REINFORCE.mirrordescent
+    #mpg['name'] = 'mirrored pg'
+
+    #spg = params.copy()
+    #spg['update'] = REINFORCE.proximal
+    #spg['regularization'] = 3.0
+    #spg['name'] = 'sparse pg'
+
+    baseline = params.copy()
+    baseline['name'] = 'baseline'
+
+    #params_list = [mpg, spg, baseline]
+    #params = baseline
+    params_list = [baseline]
+
+    #run_condor_experiment(outputdir, trialnum, policy, env, init_weights, params, feats.learning_rates, steps=numepisodes)
+    run_experiment('test3', policy, critic, env, init_actor_weights, init_critic_weights, params_list, feats.learning_rates, criticfeats.learning_rates, trials=1, steps=100)
+
+
+
 def main(args=None):
-    pendulum()
+    mountaincar()
 
 
 if __name__ == "__main__":

@@ -147,9 +147,9 @@ class ActorCritic(object):
 
         self.gamma = 1.0
         self.base_actor_learning_rate = 0.00001
-        self.base_critic_learning_rate = 0.001
-        self.actor_lambda = 0.
-        self.critic_lambda = 0.
+        self.base_critic_learning_rate = 0.00001
+        self.actor_lambda = 0.7
+        self.critic_lambda = 0.7
 
         self.actor_learning_rate = actor_learning_rates(self.base_actor_learning_rate)
         self.critic_learning_rate = critic_learning_rates(self.base_critic_learning_rate)
@@ -177,10 +177,22 @@ class ActorCritic(object):
             s = observation
             a = self.choose_action(s)
             observation, reward, done, info = self.transition(env, a)
+
+            if done:
+                reward += 2600
+                #print("----- Woohooo -------")
+
+            # Reward Shaping
+            #pi_s = abs(s[1]) / 0.07 + (s[0] + 1.2) / 1.8
+            #pi_sprime = abs(observation[1]) / 0.07 + (observation[0] + 1.2) / 1.8
+            #shaping = self.gamma*pi_sprime - pi_s
+            #reward += shaping
+
             totalreward += reward
 
             steps += 1
-            if steps >= 200:
+            if steps >= 2000:
+                #print("ep")
                 done = True
 
             delta = reward + self.gamma*self.critic.value(observation, self.critic_weights)

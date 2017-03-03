@@ -84,16 +84,16 @@ class GaussianPolicy(Policy):
     def policy(self, state, action, weights):
         assert(len(weights) % 2 == 0)
         s = self.phi(state)
-        return self.pdf(s, action, weights[:len(weights)/2], weights[len(weights)/2:])
+        return self.pdf(s, action, weights[:len(weights)//2], weights[len(weights)//2:])
 
     def loggradient(self, state, action, weights):
         a = action[0] # Scalarify action
         s = self.phi(state)
-        return np.concatenate((self.gradlogmean(s, a, weights[:len(weights)/2], weights[len(weights)/2:]),
-                               self.gradlogvar(s, a, weights[:len(weights)/2], weights[len(weights)/2:])))
+        return np.concatenate((self.gradlogmean(s, a, weights[:len(weights)//2], weights[len(weights)//2:]),
+                               self.gradlogvar(s, a, weights[:len(weights)//2], weights[len(weights)//2:])))
 
     def sample(self, state, weights):
         s = self.phi(state)
-        return [np.random.normal(np.dot(weights[:len(weights)/2], s),
-                np.exp(np.dot(weights[len(weights)/2:], s)))]
+        return [np.random.normal(np.dot(weights[:len(weights)//2], s),
+                np.exp(np.dot(weights[len(weights)//2:], s)))]
 
